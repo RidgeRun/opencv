@@ -269,148 +269,83 @@ bool is_gst_element_exists(const std::string& name)
 
 //==================================================================================================
 
-class GStreamerCapture CV_FINAL : public IVideoCapture
+class GStreamerMat CV_FINAL : public Mat
 {
 private:
-    GSafePtr<GstElement> pipeline;
-    GSafePtr<GstElement> v4l2src;
-    GSafePtr<GstElement> sink;
     GSafePtr<GstSample> sample;
-    GSafePtr<GstCaps> caps;
+    GstBuffer * buffer;
+    GstMapInfo info;
 
-    gint64        duration;
-    gint          width;
-    gint          height;
-    double        fps;
-    bool          isPosFramesSupported;
-    bool          isPosFramesEmulated;
-    gint64        emulatedFrameNumber;
+    void fillMat(int _rows, int _cols, int _type, uchar *_data);
+    bool determineFrameDims(GstSample *sample, CV_OUT Size& sz, CV_OUT gint& channels, CV_OUT bool& isOutputByteBuffer);
 
 public:
-    GStreamerCapture();
-    virtual ~GStreamerCapture() CV_OVERRIDE;
-    virtual bool grabFrame() CV_OVERRIDE;
-    virtual bool retrieveFrame(int /*unused*/, OutputArray dst) CV_OVERRIDE;
-    virtual double getProperty(int propId) const CV_OVERRIDE;
-    virtual bool setProperty(int propId, double value) CV_OVERRIDE;
-    virtual bool isOpened() const CV_OVERRIDE { return (bool)pipeline; }
-    virtual int getCaptureDomain() CV_OVERRIDE { return cv::CAP_GSTREAMER; }
-    bool open(int id);
-    bool open(const String &filename_);
-    static void newPad(GstElement * /*elem*/, GstPad     *pad, gpointer    data);
-
-protected:
-    bool determineFrameDims(CV_OUT Size& sz, CV_OUT gint& channels, CV_OUT bool& isOutputByteBuffer);
-    bool isPipelinePlaying();
-    void startPipeline();
-    void stopPipeline();
-    void restartPipeline();
-    void setFilter(const char *prop, int type, int v1, int v2);
-    void removeFilter(const char *filter);
+    GStreamerMat(GstSample * sample);
+    virtual ~GStreamerMat();
 };
 
-GStreamerCapture::GStreamerCapture() :
-    duration(-1), width(-1), height(-1), fps(-1),
-    isPosFramesSupported(false),
-    isPosFramesEmulated(false),
-    emulatedFrameNumber(-1)
+GStreamerMat::GStreamerMat(GstSample * s)
+  : Mat()
 {
-}
+    CV_Assert(s);
+    sample.attach (gst_sample_ref (s));
 
-/*!
- * \brief CvCapture_GStreamer::close
- * Closes the pipeline and destroys all instances
- */
-GStreamerCapture::~GStreamerCapture()
-{
-    if (isPipelinePlaying())
-        stopPipeline();
-    if (pipeline && GST_IS_ELEMENT(pipeline.get()))
-    {
-        gst_element_set_state(pipeline, GST_STATE_NULL);
-        pipeline.release();
-    }
-}
+    buffer = gst_sample_get_buffer (s);
+    CV_Assert(buffer);
 
-/*!
- * \brief CvCapture_GStreamer::grabFrame
- * \return
- * Grabs a sample from the pipeline, awaiting consumation by retreiveFrame.
- * The pipeline is started if it was not running yet
- */
-bool GStreamerCapture::grabFrame()
-{
-    if (!pipeline || !GST_IS_ELEMENT(pipeline.get()))
-        return false;
-
-    // start the pipeline if it was not in playing state yet
-    if (!this->isPipelinePlaying())
-        this->startPipeline();
-
-    // bail out if EOS
-    if (gst_app_sink_is_eos(GST_APP_SINK(sink.get())))
-        return false;
-
-    sample.attach(gst_app_sink_pull_sample(GST_APP_SINK(sink.get())));
-    if (!sample)
-        return false;
-
-    if (isPosFramesEmulated)
-        emulatedFrameNumber++;
-
-    return true;
-}
-
-/*!
- * \brief CvCapture_GStreamer::retrieveFrame
- * \return IplImage pointer. [Transfer Full]
- *  Retrieve the previously grabbed buffer, and wrap it in an IPLImage structure
- */
-bool GStreamerCapture::retrieveFrame(int, OutputArray dst)
-{
-    if (!sample)
-        return false;
     Size sz;
-    gint channels = 0;
+    int channels = 0;
     bool isOutputByteBuffer = false;
-    if (!determineFrameDims(sz, channels, isOutputByteBuffer))
-        return false;
 
-    // gstreamer expects us to handle the memory at this point
-    // so we can just wrap the raw buffer and be done with it
-    GstBuffer* buf = gst_sample_get_buffer(sample);  // no lifetime transfer
-    if (!buf)
-        return false;
-    GstMapInfo info = {};
-    if (!gst_buffer_map(buf, &info, GST_MAP_READ))
-    {
-        //something weird went wrong here. abort. abort.
-        CV_WARN("Failed to map GStreamer buffer to system memory");
-        return false;
+    if (false == determineFrameDims(s, sz, channels, isOutputByteBuffer)) {
+      CV_Error(Error::Code::StsUnsupportedFormat, ("Unable to wrap GstBuffer in a Mat"));
     }
 
-    try
-    {
-        Mat src;
-        if (isOutputByteBuffer)
-            src = Mat(Size(info.size, 1), CV_8UC1, info.data);
-        else
-            src = Mat(sz, CV_MAKETYPE(CV_8U, channels), info.data);
-        CV_Assert(src.isContinuous());
-        src.copyTo(dst);
+    if (false == gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+      CV_Error(Error::Code::StsUnsupportedFormat, ("Unable to map GstBuffer"));
     }
-    catch (...)
-    {
-        gst_buffer_unmap(buf, &info);
-        throw;
-    }
-    gst_buffer_unmap(buf, &info);
 
-    return true;
+    int type;
+    if (isOutputByteBuffer) {
+      sz = Size(info.size, 1);
+      type = CV_8UC1;
+    } else {
+      type = CV_MAKETYPE(CV_8U, channels);
+    }
+
+    fillMat(sz.height, sz.width, type, info.data);
 }
 
-bool GStreamerCapture::determineFrameDims(Size &sz, gint& channels, bool& isOutputByteBuffer)
+GStreamerMat::~GStreamerMat()
 {
+  gst_buffer_unmap (buffer, &info);
+  sample.release();
+}
+
+void GStreamerMat::fillMat(int _rows, int _cols, int _type, uchar *_data)
+{
+  flags += CV_MAT_TYPE(_type);
+  rows = _rows;
+  cols = _cols;
+  datastart = data = _data;
+  dims = 2;
+
+  size_t esz = CV_ELEM_SIZE(_type);
+  size_t minstep = cols * esz;
+
+  step[0] = minstep;
+  step[1] = esz;
+
+  dataend = datalimit = datastart + minstep * rows;
+
+  updateContinuityFlag();
+}
+
+bool GStreamerMat::determineFrameDims(GstSample *sample, Size &sz, gint& channels,
+                                      bool& isOutputByteBuffer)
+{
+    CV_Assert(sample);
+
     GstCaps * frame_caps = gst_sample_get_caps(sample);  // no lifetime transfer
 
     // bail out in no caps
@@ -420,6 +355,8 @@ bool GStreamerCapture::determineFrameDims(Size &sz, gint& channels, bool& isOutp
     GstStructure* structure = gst_caps_get_structure(frame_caps, 0);  // no lifetime transfer
 
     // bail out if width or height are 0
+    int width = 0;
+    int height = 0;
     if (!gst_structure_get_int(structure, "width", &width)
         || !gst_structure_get_int(structure, "height", &height))
     {
@@ -491,6 +428,119 @@ bool GStreamerCapture::determineFrameDims(Size &sz, gint& channels, bool& isOutp
     {
         CV_Error_(Error::StsNotImplemented, ("Unsupported GStreamer layer type: %s", name.c_str()));
     }
+    return true;
+}
+
+//==================================================================================================
+
+class GStreamerCapture CV_FINAL : public IVideoCapture
+{
+private:
+    GSafePtr<GstElement> pipeline;
+    GSafePtr<GstElement> v4l2src;
+    GSafePtr<GstElement> sink;
+    GSafePtr<GstSample> sample;
+    GSafePtr<GstCaps> caps;
+
+    gint64        duration;
+    gint          width;
+    gint          height;
+    double        fps;
+    bool          isPosFramesSupported;
+    bool          isPosFramesEmulated;
+    gint64        emulatedFrameNumber;
+
+public:
+    GStreamerCapture();
+    virtual ~GStreamerCapture() CV_OVERRIDE;
+    virtual bool grabFrame() CV_OVERRIDE;
+    virtual bool retrieveFrame(int /*unused*/, OutputArray dst) CV_OVERRIDE;
+    virtual double getProperty(int propId) const CV_OVERRIDE;
+    virtual bool setProperty(int propId, double value) CV_OVERRIDE;
+    virtual bool isOpened() const CV_OVERRIDE { return (bool)pipeline; }
+    virtual int getCaptureDomain() CV_OVERRIDE { return cv::CAP_GSTREAMER; }
+    bool open(int id);
+    bool open(const String &filename_);
+    static void newPad(GstElement * /*elem*/, GstPad     *pad, gpointer    data);
+
+protected:
+    bool isPipelinePlaying();
+    void startPipeline();
+    void stopPipeline();
+    void restartPipeline();
+    void setFilter(const char *prop, int type, int v1, int v2);
+    void removeFilter(const char *filter);
+};
+
+GStreamerCapture::GStreamerCapture() :
+    duration(-1), width(-1), height(-1), fps(-1),
+    isPosFramesSupported(false),
+    isPosFramesEmulated(false),
+    emulatedFrameNumber(-1)
+{
+}
+
+/*!
+ * \brief CvCapture_GStreamer::close
+ * Closes the pipeline and destroys all instances
+ */
+GStreamerCapture::~GStreamerCapture()
+{
+    if (isPipelinePlaying())
+        stopPipeline();
+    if (pipeline && GST_IS_ELEMENT(pipeline.get()))
+    {
+        gst_element_set_state(pipeline, GST_STATE_NULL);
+        pipeline.release();
+    }
+}
+
+/*!
+ * \brief CvCapture_GStreamer::grabFrame
+ * \return
+ * Grabs a sample from the pipeline, awaiting consumation by retreiveFrame.
+ * The pipeline is started if it was not running yet
+ */
+bool GStreamerCapture::grabFrame()
+{
+    if (!pipeline || !GST_IS_ELEMENT(pipeline.get()))
+        return false;
+
+    // start the pipeline if it was not in playing state yet
+    if (!this->isPipelinePlaying())
+        this->startPipeline();
+
+    // bail out if EOS
+    if (gst_app_sink_is_eos(GST_APP_SINK(sink.get())))
+        return false;
+
+    sample.attach(gst_app_sink_pull_sample(GST_APP_SINK(sink.get())));
+    if (!sample)
+        return false;
+
+    if (isPosFramesEmulated)
+        emulatedFrameNumber++;
+
+    return true;
+}
+
+/*!
+ * \brief CvCapture_GStreamer::retrieveFrame
+ * \return IplImage pointer. [Transfer Full]
+ *  Retrieve the previously grabbed buffer, and wrap it in an IPLImage structure
+ */
+bool GStreamerCapture::retrieveFrame(int, OutputArray dst)
+{
+    if (!sample)
+        return false;
+
+    try {
+      dst.getMatRef() = GStreamerMat(sample.get());
+    } catch (cv::Exception &e) {
+      CV_WARN(e.err);
+      return false;
+    }
+
     return true;
 }
 
