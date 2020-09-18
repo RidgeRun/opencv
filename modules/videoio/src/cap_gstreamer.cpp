@@ -281,70 +281,70 @@ public:
 private:
     struct GStreamerAllocatorData
     {
-      GSafePtr<GstSample> sample;
-      GstBuffer * buffer;
-      GstMapInfo info;
+        GSafePtr<GstSample> sample;
+        GstBuffer * buffer;
+        GstMapInfo info;
     };
 };
 
 UMatData* GStreamerAllocator::allocate(int /*dims*/, const int* /*sizes*/,
-				       int /*type*/, void* /*data0*/,
-				       size_t* /*step*/, AccessFlag /*flags*/,
+                                       int /*type*/, void* /*data0*/,
+                                       size_t* /*step*/, AccessFlag /*flags*/,
                                        UMatUsageFlags /*usageFlags*/) const
 {
-  CV_Error(Error::Code::StsBadFunc, ("GStreamer allocator may not alloc raw data"));
-  return nullptr;
+    CV_Error(Error::Code::StsBadFunc, ("GStreamer allocator may not alloc raw data"));
+    return nullptr;
 }
 
 bool GStreamerAllocator::allocate(UMatData* /*u*/, AccessFlag /*accessFlags*/,
-				  UMatUsageFlags /*usageFlags*/) const
+                                  UMatUsageFlags /*usageFlags*/) const
 {
-  CV_Error(Error::Code::StsBadFunc, ("GStreamer allocator may not alloc raw data"));
-  return false;
+    CV_Error(Error::Code::StsBadFunc, ("GStreamer allocator may not alloc raw data"));
+    return false;
 }
 
 UMatData* GStreamerAllocator::allocate(GstSample *s) const
 {
-  CV_Assert(s);
+    CV_Assert(s);
 
-  GStreamerAllocatorData *gstdata = new GStreamerAllocatorData;
-  CV_Assert(gstdata);
+    GStreamerAllocatorData *gstdata = new GStreamerAllocatorData;
+    CV_Assert(gstdata);
 
-  gstdata->sample.attach (gst_sample_ref (s));
-  gstdata->buffer = gst_sample_get_buffer (s);
+    gstdata->sample.attach (gst_sample_ref (s));
+    gstdata->buffer = gst_sample_get_buffer (s);
 
-  if (false == gst_buffer_map (gstdata->buffer, &(gstdata->info), GST_MAP_READ)) {
-    CV_Error(Error::Code::StsUnsupportedFormat, ("Unable to map GstBuffer"));
-  }
+    if (false == gst_buffer_map (gstdata->buffer, &(gstdata->info), GST_MAP_READ)) {
+        CV_Error(Error::Code::StsUnsupportedFormat, ("Unable to map GstBuffer"));
+    }
 
-  UMatData* u = new UMatData(this);
-  u->data = u->origdata = gstdata->info.data;
-  u->size = gstdata->info.size;
-  u->userdata = gstdata;
+    UMatData* u = new UMatData(this);
+    u->data = u->origdata = gstdata->info.data;
+    u->size = gstdata->info.size;
+    u->userdata = gstdata;
 
-  return u;
+    return u;
 }
 
 void GStreamerAllocator::deallocate(UMatData* u) const
 {
-  CV_Assert(u);
-  CV_Assert(u->urefcount == 0);
-  CV_Assert(u->refcount == 0);
+    CV_Assert(u);
+    CV_Assert(u->urefcount == 0);
+    CV_Assert(u->refcount == 0);
 
-  GStreamerAllocatorData *gstdata = static_cast<GStreamerAllocatorData *>(u->userdata);
-  CV_Assert (GST_IS_BUFFER (gstdata->buffer));
+    GStreamerAllocatorData *gstdata = static_cast<GStreamerAllocatorData *>(u->userdata);
+    CV_Assert (GST_IS_BUFFER (gstdata->buffer));
 
-  gst_buffer_unmap (gstdata->buffer, &(gstdata->info));
-  gstdata->sample.release();
+    gst_buffer_unmap (gstdata->buffer, &(gstdata->info));
+    gstdata->sample.release();
 
-  delete gstdata;
-  delete u;
+    delete gstdata;
+    delete u;
 }
 
 static MatAllocator* getGStreamerAllocator()
 {
-  static MatAllocator *const instance = new GStreamerAllocator();
-  return instance;
+    static MatAllocator *const instance = new GStreamerAllocator();
+    return instance;
 }
 
 //==================================================================================================
@@ -369,7 +369,7 @@ GStreamerMat::GStreamerMat(GstSample * s)
     bool isOutputByteBuffer = false;
 
     if (false == determineFrameDims(s, sz, channels, isOutputByteBuffer)) {
-      CV_Error(Error::Code::StsUnsupportedFormat, ("Unable to wrap GstBuffer in a Mat"));
+        CV_Error(Error::Code::StsUnsupportedFormat, ("Unable to wrap GstBuffer in a Mat"));
     }
 
     allocator = getGStreamerAllocator();
@@ -378,10 +378,10 @@ GStreamerMat::GStreamerMat(GstSample * s)
 
     int type;
     if (isOutputByteBuffer) {
-      sz = Size(u->size, 1);
-      type = CV_8UC1;
+        sz = Size(u->size, 1);
+        type = CV_8UC1;
     } else {
-      type = CV_MAKETYPE(CV_8U, channels);
+        type = CV_MAKETYPE(CV_8U, channels);
     }
 
     fillMat(sz.height, sz.width, type, u->data);
@@ -390,21 +390,21 @@ GStreamerMat::GStreamerMat(GstSample * s)
 
 void GStreamerMat::fillMat(int _rows, int _cols, int _type, uchar *_data)
 {
-  flags += CV_MAT_TYPE(_type);
-  rows = _rows;
-  cols = _cols;
-  datastart = data = _data;
-  dims = 2;
+    flags += CV_MAT_TYPE(_type);
+    rows = _rows;
+    cols = _cols;
+    datastart = data = _data;
+    dims = 2;
 
-  size_t esz = CV_ELEM_SIZE(_type);
-  size_t minstep = cols * esz;
+    size_t esz = CV_ELEM_SIZE(_type);
+    size_t minstep = cols * esz;
 
-  step[0] = minstep;
-  step[1] = esz;
+    step[0] = minstep;
+    step[1] = esz;
 
-  dataend = datalimit = datastart + minstep * rows;
+    dataend = datalimit = datastart + minstep * rows;
 
-  updateContinuityFlag();
+    updateContinuityFlag();
 }
 
 bool GStreamerMat::determineFrameDims(GstSample *sample, Size &sz, gint& channels,
