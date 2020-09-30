@@ -173,6 +173,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ type all(type v) {return v;} \
         static __device__ __host__ __forceinline__ type make(type x) {return x;} \
         static __device__ __host__ __forceinline__ type make(const type* v) {return *v;} \
+        static __device__ __host__ __forceinline__ bool compare(type a, type b) {return a == b;} \
     }; \
     template<> struct VecTraits<type ## 1> \
     { \
@@ -181,6 +182,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ type ## 1 all(type v) {return make_ ## type ## 1(v);} \
         static __device__ __host__ __forceinline__ type ## 1 make(type x) {return make_ ## type ## 1(x);} \
         static __device__ __host__ __forceinline__ type ## 1 make(const type* v) {return make_ ## type ## 1(*v);} \
+        static __device__ __host__ __forceinline__ bool compare(type ## 1 a, type ## 1 b) {return a.x == b.x;} \
     }; \
     template<> struct VecTraits<type ## 2> \
     { \
@@ -189,6 +191,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ type ## 2 all(type v) {return make_ ## type ## 2(v, v);} \
         static __device__ __host__ __forceinline__ type ## 2 make(type x, type y) {return make_ ## type ## 2(x, y);} \
         static __device__ __host__ __forceinline__ type ## 2 make(const type* v) {return make_ ## type ## 2(v[0], v[1]);} \
+        static __device__ __host__ __forceinline__ bool compare(type ## 2 a, type ## 2 b) {return a.x == b.x && a.y == b.y;} \
     }; \
     template<> struct VecTraits<type ## 3> \
     { \
@@ -197,6 +200,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ type ## 3 all(type v) {return make_ ## type ## 3(v, v, v);} \
         static __device__ __host__ __forceinline__ type ## 3 make(type x, type y, type z) {return make_ ## type ## 3(x, y, z);} \
         static __device__ __host__ __forceinline__ type ## 3 make(const type* v) {return make_ ## type ## 3(v[0], v[1], v[2]);} \
+        static __device__ __host__ __forceinline__ bool compare(type ## 3 a, type ## 3 b) {return a.x == b.x && a.y == b.y && a.z == b.z;} \
     }; \
     template<> struct VecTraits<type ## 4> \
     { \
@@ -205,6 +209,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ type ## 4 all(type v) {return make_ ## type ## 4(v, v, v, v);} \
         static __device__ __host__ __forceinline__ type ## 4 make(type x, type y, type z, type w) {return make_ ## type ## 4(x, y, z, w);} \
         static __device__ __host__ __forceinline__ type ## 4 make(const type* v) {return make_ ## type ## 4(v[0], v[1], v[2], v[3]);} \
+        static __device__ __host__ __forceinline__ bool compare(type ## 4 a, type ## 4 b) {return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;} \
     }; \
     template<> struct VecTraits<type ## 8> \
     { \
@@ -213,6 +218,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ type ## 8 all(type v) {return make_ ## type ## 8(v, v, v, v, v, v, v, v);} \
         static __device__ __host__ __forceinline__ type ## 8 make(type a0, type a1, type a2, type a3, type a4, type a5, type a6, type a7) {return make_ ## type ## 8(a0, a1, a2, a3, a4, a5, a6, a7);} \
         static __device__ __host__ __forceinline__ type ## 8 make(const type* v) {return make_ ## type ## 8(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);} \
+        static __device__ __host__ __forceinline__ bool compare(type ## 8 a, type ## 8 b) {return a.a0 == b.a0 && a.a1 == b.a1 && a.a2 == b.a2 && a.a3 == b.a3 && a.a4 == b.a4 && a.a5 == b.a5 && a.a6 == b.a6 && a.a7 == b.a7;} \
     };
 
     OPENCV_CUDA_IMPLEMENT_VEC_TRAITS(uchar)
@@ -232,6 +238,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ char all(char v) {return v;}
         static __device__ __host__ __forceinline__ char make(char x) {return x;}
         static __device__ __host__ __forceinline__ char make(const char* x) {return *x;}
+        static __device__ __host__ __forceinline__ bool compare(char a, char b) {return a == b;} \
     };
     template<> struct VecTraits<schar>
     {
@@ -240,6 +247,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ schar all(schar v) {return v;}
         static __device__ __host__ __forceinline__ schar make(schar x) {return x;}
         static __device__ __host__ __forceinline__ schar make(const schar* x) {return *x;}
+        static __device__ __host__ __forceinline__ bool compare(schar a, schar b) {return a == b;} \
     };
     template<> struct VecTraits<char1>
     {
@@ -248,6 +256,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ char1 all(schar v) {return make_char1(v);}
         static __device__ __host__ __forceinline__ char1 make(schar x) {return make_char1(x);}
         static __device__ __host__ __forceinline__ char1 make(const schar* v) {return make_char1(v[0]);}
+        static __device__ __host__ __forceinline__ bool compare(char1 a, char1 b) {return a.x == b.x;} \
     };
     template<> struct VecTraits<char2>
     {
@@ -256,6 +265,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ char2 all(schar v) {return make_char2(v, v);}
         static __device__ __host__ __forceinline__ char2 make(schar x, schar y) {return make_char2(x, y);}
         static __device__ __host__ __forceinline__ char2 make(const schar* v) {return make_char2(v[0], v[1]);}
+        static __device__ __host__ __forceinline__ bool compare(char2 a, char2 b) {return a.x == b.x && a.y == b.y;} \
     };
     template<> struct VecTraits<char3>
     {
@@ -264,6 +274,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ char3 all(schar v) {return make_char3(v, v, v);}
         static __device__ __host__ __forceinline__ char3 make(schar x, schar y, schar z) {return make_char3(x, y, z);}
         static __device__ __host__ __forceinline__ char3 make(const schar* v) {return make_char3(v[0], v[1], v[2]);}
+        static __device__ __host__ __forceinline__ bool compare(char3 a, char3 b) {return a.x == b.x && a.y == b.y && a.z == b.z;} \
     };
     template<> struct VecTraits<char4>
     {
@@ -272,6 +283,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ char4 all(schar v) {return make_char4(v, v, v, v);}
         static __device__ __host__ __forceinline__ char4 make(schar x, schar y, schar z, schar w) {return make_char4(x, y, z, w);}
         static __device__ __host__ __forceinline__ char4 make(const schar* v) {return make_char4(v[0], v[1], v[2], v[3]);}
+        static __device__ __host__ __forceinline__ bool compare(char4 a, char4 b) {return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;} \
     };
     template<> struct VecTraits<char8>
     {
@@ -280,6 +292,7 @@ namespace cv { namespace cuda { namespace device
         static __device__ __host__ __forceinline__ char8 all(schar v) {return make_char8(v, v, v, v, v, v, v, v);}
         static __device__ __host__ __forceinline__ char8 make(schar a0, schar a1, schar a2, schar a3, schar a4, schar a5, schar a6, schar a7) {return make_char8(a0, a1, a2, a3, a4, a5, a6, a7);}
         static __device__ __host__ __forceinline__ char8 make(const schar* v) {return make_char8(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);}
+        static __device__ __host__ __forceinline__ bool compare(char8 a, char8 b) {return a.a0 == b.a0 && a.a1 == b.a1 && a.a2 == b.a2 && a.a3 == b.a3 && a.a4 == b.a4 && a.a5 == b.a5 && a.a6 == b.a6 && a.a7 == b.a7;} \
     };
 }}} // namespace cv { namespace cuda { namespace cudev
 
